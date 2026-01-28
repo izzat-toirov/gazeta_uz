@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String
+  bio       String?
+  avatarUrl String?
+  role      Role      @default(AUTHOR)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  comments  Comment[]
+  posts     Post[]
+}
+
+model Post {
+  id           Int               @id @default(autoincrement())
+  slug         String            @unique
+  thumbnailUrl String?
+  viewCount    Int               @default(0)
+  status       PostStatus        @default(DRAFT)
+  publishedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  authorId     Int
+  categoryId   Int
+  comments     Comment[]
+  media        Media[]
+  author       User              @relation(fields: [authorId], references: [id])
+  category     Category          @relation(fields: [categoryId], references: [id])
+  translations PostTranslation[]
+  reactions    Reaction[]
+  tags         Tag[]             @relation("PostToTag")
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model PostTranslation {
+  id       Int      @id @default(autoincrement())
+  language Language
+  title    String   @db.VarChar(255)
+  lead     String?
+  content  String
+  postId   Int
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, language])
+  @@index([language])
+}
+
+model Category {
+  id           Int                   @id @default(autoincrement())
+  slug         String                @unique
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  parentId     Int?
+  parent       Category?             @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     Category[]            @relation("CategoryHierarchy")
+  translations CategoryTranslation[]
+  posts        Post[]
+}
+
+model CategoryTranslation {
+  id         Int      @id @default(autoincrement())
+  language   Language
+  name       String   @db.VarChar(100)
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, language])
+}
+
+model Tag {
+  id           Int              @id @default(autoincrement())
+  slug         String           @unique
+  createdAt    DateTime         @default(now())
+  translations TagTranslation[]
+  posts        Post[]           @relation("PostToTag")
+}
+
+model TagTranslation {
+  id       Int      @id @default(autoincrement())
+  language Language
+  name     String   @db.VarChar(50)
+  tagId    Int
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, language])
+}
+
+model Media {
+  id          Int        @id @default(autoincrement())
+  url         String
+  type        String
+  caption     String?
+  createdAt   DateTime   @default(now())
+  postId      Int?
+  post        Post?      @relation(fields: [postId], references: [id])
+  fileAssetId Int?
+  fileAsset   FileAsset? @relation(fields: [fileAssetId], references: [id])
+
+  @@index([postId])
+  @@index([fileAssetId])
+}
+
+model FileAsset {
+  id           Int      @id @default(autoincrement())
+  originalName String
+  filename     String
+  path         String // Supabase path
+  url          String // Public URL
+  mimetype     String
+  size         Int
+  createdAt    DateTime @default(now())
+  media        Media[]
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    Int
+  postId    Int
+  parentId  Int?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([postId])
+}
+
+model Reaction {
+  id        Int      @id @default(autoincrement())
+  type      String
+  createdAt DateTime @default(now())
+  postId    Int
+  userId    Int?
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+enum Language {
+  RU
+  UZ_LATIN
+  UZ_CYRILLIC
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  SCHEDULED
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+  AUTHOR
+  READER
+}
